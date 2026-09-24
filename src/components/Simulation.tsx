@@ -22,13 +22,23 @@ interface SimulationProps {
   inputRef?: RefObject<PlayerInput>;
   /** Pause : le combat est figé */
   paused?: boolean;
+  /**
+   * Repère du combat dans le monde (mode Aventure) : centre + angle de l'axe du combat.
+   * Le moteur reste en 1D : l'axe local X du groupe est orienté du joueur vers le monstre.
+   */
+  frame?: { x: number; z: number; angle: number };
+  /** Affiche l'anneau de la zone de combat au sol */
+  showZone?: boolean;
   speed?: number;
 }
 
-export function Simulation({ a, b, battleRef, inputRef, paused = false, speed = 1 }: SimulationProps) {
+export function Simulation({ a, b, battleRef, inputRef, paused = false, frame, showZone = false, speed = 1 }: SimulationProps) {
   const fx = useRef(createFx());
-  const focus = useRef(new THREE.Vector3(0, 1.2, 0));
+  const group = useRef<THREE.Group>(null);
+  const focus = useRef<THREE.Vector3 | null>(null);
   const tmp = useRef(new THREE.Vector3());
+  const camTarget = useRef(new THREE.Vector3());
+  const focusTarget = useRef(new THREE.Vector3());
 
   useFrame((state, delta) => {
     const cam = state.camera as THREE.PerspectiveCamera;
@@ -57,7 +67,7 @@ export function Simulation({ a, b, battleRef, inputRef, paused = false, speed = 
       battleRef.current = next;
       battle = next;
       for (const e of next.events) {
-        onEvent(e, f, cam, tmp.current);
+        onEvent(e, f, cam, tmp.current, group.current);
       }
     }
 
@@ -90,11 +100,17 @@ export function Simulation({ a, b, battleRef, inputRef, paused = false, speed = 
       fov = 40;
     }
 
+    // Positions voulues dans le repère du combat, converties en coordonnées du monde
+    const g = group.current;
+    if (!g) return;
+    g.updateMatrixWorld();
+    const wantCam = g.localToWorld(camTarget.current.set(focusX - 1.1, height, dist));
+    const wantFocus = g.localToWorld(focusTarget.current.set(focusX, 1.2, 0));
+    if (!focus.current) focus.current = wantFocus.clone();
+
     const k = 1 - Math.exp(-realDt * (charger ? 9 : 5));
-    focus.current.x += (focusX - focus.current.x) * k;
-    cam.position.x += (focusX - 1.1 - cam.position.x) * k;
-    cam.position.y += (height - cam.position.y) * k;
-    cam.position.z += (dist - cam.position.z) * k;
+    focus.current.lerp(wantFocus, k);
+    cam.position.lerp(wantCam, k);
 
     // Tremblement de caméra + petit zoom à l'impact
     cam.position.x += (Math.random() - 0.5) * f.shake;
@@ -103,23 +119,29 @@ export function Simulation({ a, b, battleRef, inputRef, paused = false, speed = 
     f.kick *= Math.exp(-realDt * 7);
     cam.fov += (fov - f.kick * 3.5 - cam.fov) * (1 - Math.exp(-realDt * 10));
     cam.updateProjectionMatrix();
-    cam.lookAt(focus.current.x, 1.2, 0);
+    cam.lookAt(focus.current);
   });
 
   return (
-    <>
+    <group ref={group} position={[frame?.x ?? 0, 0, frame?.z ?? 0]} rotation-y={frame?.angle ?? 0}>
+      {showZone && (
+        <mesh rotation-x={-Math.PI / 2} position-y={0.03}>
+          <ringGeometry args={[7, 7.3, 64]} />
+          <meshBasicMaterial color="#ffffff" transparent opacity={0.6} />
+        </mesh>
+      )}
       {/* Combattant A */}
-      <Character url={a.model} scale={a.scale} facing={1} getFighter={() => battleRef.current.fighterA} fx={fx} />
+      <Character url={a.model} scale={a.scale} tint={a.tint} facing={1} getFighter={() => battleRef.current.fighterA} fx={fx} />
 
       {/* Combattant B */}
-      <Character url={b.model} scale={b.scale} facing={-1} getFighter={() => battleRef.current.fighterB} fx={fx} />
+      <Character url={b.model} scale={b.scale} tint={b.tint} facing={-1} getFighter={() => battleRef.current.fighterB} fx={fx} />
 
       {/* Boules de feu */}
       <Projectiles battleRef={battleRef} />
 
       {/* Étincelles, ondes de choc, lignes de vitesse, auras */}
       <Effects battleRef={battleRef} />
-    </>
+    </group>
   );
 }
 
@@ -128,7 +150,8 @@ function onEvent(
   e: BattleEvent,
   f: ReturnType<typeof createFx>,
   cam: THREE.PerspectiveCamera,
-  v: THREE.Vector3
+  v: THREE.Vector3,
+  frame: THREE.Object3D | null
 ) {
   const level = e.power === "light" ? 0 : e.power === "heavy" ? 1 : 2;
   switch (e.type) {
@@ -155,6 +178,8 @@ function onEvent(
   }
 
   // Position à l'écran (en %) pour les textes flottants du HUD
-  v.set(e.x, 1.6, 0.2).project(cam);
+  v.set(e.x, 1.6, 0.2);
+  if (frame) frame.localToWorld(v);
+  v.project(cam);
   fxBus.emit({ e, sx: (v.x * 0.5 + 0.5) * 100, sy: (1 - (v.y * 0.5 + 0.5)) * 100 });
 }

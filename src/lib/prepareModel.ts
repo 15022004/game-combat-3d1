@@ -20,7 +20,7 @@ const isMesh = (o: THREE.Object3D) => (o as THREE.Mesh).isMesh === true;
 const baseName = (name: string) => name.replace(/_\d+$/, "");
 
 /** Clone le personnage et ne garde que le squelette relié au mesh */
-export function prepareCharacter(scene: THREE.Object3D) {
+export function prepareCharacter(scene: THREE.Object3D, tint?: string) {
   const clone = SkeletonUtils.clone(scene);
 
   let skinnedRoot: THREE.Object3D | null = null;
@@ -32,10 +32,25 @@ export function prepareCharacter(scene: THREE.Object3D) {
   // Les squelettes vides (un par animation dans les exports Mixamo) ne servent plus
   if (skinnedRoot) clone.children.filter((c) => c !== skinnedRoot).forEach((c) => clone.remove(c));
 
+  const tintColor = tint ? new THREE.Color(tint) : null;
   clone.traverse((o) => {
     if (isMesh(o)) {
-      o.castShadow = true;
-      o.frustumCulled = false; // un mesh animé peut sortir de sa boîte englobante d'origine
+      const mesh = o as THREE.Mesh;
+      mesh.castShadow = true;
+      mesh.frustumCulled = false; // un mesh animé peut sortir de sa boîte englobante d'origine
+      // Teinte (monstres) : on clone les matériaux pour ne pas colorer le personnage d'origine
+      if (tintColor) {
+        const recolor = (m: THREE.Material) => {
+          const c = m.clone() as THREE.MeshStandardMaterial;
+          if (c.color) c.color.lerp(tintColor, 0.55);
+          if (c.emissive) {
+            c.emissive.copy(tintColor);
+            c.emissiveIntensity = 0.25;
+          }
+          return c;
+        };
+        mesh.material = Array.isArray(mesh.material) ? mesh.material.map(recolor) : recolor(mesh.material);
+      }
     }
   });
   return clone;

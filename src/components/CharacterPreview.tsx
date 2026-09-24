@@ -1,24 +1,18 @@
 "use client";
-import { Suspense, useEffect, useMemo, useRef } from "react";
+import { Suspense, useEffect, useRef } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { Html, useAnimations, useGLTF } from "@react-three/drei";
+import { Html, useAnimations } from "@react-three/drei";
 import * as THREE from "three";
 import type { CharacterDef } from "@/data/characters";
-import { prepareCharacter, retargetClips } from "@/lib/prepareModel";
 import { MOVES } from "@/lib/engine/moves";
-import { ANIMS_URL } from "./Character";
+import { useCharacterModel } from "@/lib/useCharacterModel";
 
 /** Démo : le personnage enchaîne des mouvements au hasard entre deux temps de repos */
 const DEMO = Object.values(MOVES);
 
 function Model({ def }: { def: CharacterDef }) {
   const group = useRef<THREE.Group>(null);
-  const gltf = useGLTF(def.model);
-  const lib = useGLTF(ANIMS_URL);
-  const { scene, clips } = useMemo(() => {
-    const character = prepareCharacter(gltf.scene);
-    return { scene: character, clips: retargetClips(character, lib.scene, lib.animations) };
-  }, [gltf.scene, lib.scene, lib.animations]);
+  const { scene, clips } = useCharacterModel(def.model, def.tint);
   const { actions } = useAnimations(clips, group);
 
   useEffect(() => {

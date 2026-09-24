@@ -18,11 +18,13 @@ const STAT_LABEL = [
 
 interface Props {
   initial: GameSettings | null;
+  /** Choix du héros uniquement (mode Aventure) : sans adversaire / mode / difficulté */
+  heroOnly?: boolean;
   onConfirm: (s: GameSettings) => void;
   onCancel?: () => void;
 }
 
-export function CharacterSelect({ initial, onConfirm, onCancel }: Props) {
+export function CharacterSelect({ initial, heroOnly = false, onConfirm, onCancel }: Props) {
   const [playerId, setPlayerId] = useState(initial?.playerId ?? CHARACTERS[0].id);
   const [opponentId, setOpponentId] = useState<string>(initial?.opponentId ?? "random");
   const [difficulty, setDifficulty] = useState<DifficultyId>(initial?.difficulty ?? "normal");
@@ -37,7 +39,7 @@ export function CharacterSelect({ initial, onConfirm, onCancel }: Props) {
         {/* Colonne gauche : aperçu 3D du perso choisi */}
         <section className="flex flex-col lg:w-[42%]">
           <h1 style={{ fontFamily: FONT, fontStyle: "italic", fontSize: 40, letterSpacing: 2, lineHeight: 1 }}>
-            {initial ? "Changer de combattant" : "Choisis ton combattant"}
+            {heroOnly ? (initial ? "Changer de héros" : "Choisis ton héros") : "Combat rapide"}
           </h1>
           <p className="mt-2 text-sm text-zinc-400">
             Ton choix est mémorisé : la prochaine fois, tu arrives directement dans l&apos;arène.
@@ -68,6 +70,7 @@ export function CharacterSelect({ initial, onConfirm, onCancel }: Props) {
             </div>
           </div>
 
+          {!heroOnly && (<>
           <div>
             <Heading>Mode</Heading>
             <div className="flex flex-wrap gap-2">
@@ -110,6 +113,13 @@ export function CharacterSelect({ initial, onConfirm, onCancel }: Props) {
             </div>
             <p className="mt-2 text-sm text-zinc-400">{diff.description}</p>
           </div>
+          </>)}
+          {heroOnly && (
+            <p className="text-sm text-zinc-400">
+              Ton héros part à l&apos;aventure : 51 niveaux sur 5 champs de bataille, un monstre à trouver et à
+              battre à chaque niveau. Les pièces gagnées servent à améliorer ses stats.
+            </p>
+          )}
 
           <div className="mt-auto flex flex-wrap items-center gap-3 pb-4">
             <button
@@ -117,7 +127,7 @@ export function CharacterSelect({ initial, onConfirm, onCancel }: Props) {
               onClick={() => onConfirm({ playerId, opponentId: opponent, difficulty, mode })}
               style={{ ...bigBtn, background: player.color, color: "#07080f", borderColor: player.color }}
             >
-              COMBATTRE
+              {heroOnly ? "VALIDER" : "COMBATTRE"}
             </button>
             {onCancel && (
               <button type="button" onClick={onCancel} style={bigBtn}>

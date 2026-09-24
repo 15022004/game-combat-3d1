@@ -1,15 +1,13 @@
 "use client";
-import { useMemo, useRef } from "react";
+import { useRef } from "react";
 import type { RefObject } from "react";
 import { useFrame } from "@react-three/fiber";
-import { useGLTF, useAnimations } from "@react-three/drei";
+import { useAnimations } from "@react-three/drei";
 import * as THREE from "three";
-import { prepareCharacter, retargetClips } from "@/lib/prepareModel";
+import { useCharacterModel } from "@/lib/useCharacterModel";
 import type { ActionType, FighterState } from "@/lib/engine/types";
 import { getMove } from "@/lib/engine/moves";
 import type { FxState } from "@/lib/fx";
-
-export const ANIMS_URL = "/models/anims.glb";
 
 interface ClipConfig {
   clip: string; // nom du clip dans anims.glb
@@ -60,20 +58,16 @@ function playClip(action: THREE.AnimationAction, cfg: ClipConfig) {
 interface CharacterProps {
   url: string;
   scale?: number;
+  tint?: string;
   /** 1 = regarde vers la droite (+x), -1 = regarde vers la gauche (-x) */
   facing: 1 | -1;
   getFighter: () => FighterState;
   fx: RefObject<FxState>;
 }
 
-export function Character({ url, scale = 1, facing, getFighter, fx }: CharacterProps) {
+export function Character({ url, scale = 1, tint, facing, getFighter, fx }: CharacterProps) {
   const group = useRef<THREE.Group>(null);
-  const gltf = useGLTF(url);
-  const lib = useGLTF(ANIMS_URL);
-  const { scene, clips } = useMemo(() => {
-    const character = prepareCharacter(gltf.scene);
-    return { scene: character, clips: retargetClips(character, lib.scene, lib.animations) };
-  }, [gltf.scene, lib.scene, lib.animations]);
+  const { scene, clips } = useCharacterModel(url, tint);
   const { actions, mixer } = useAnimations(clips, group);
   const lastKey = useRef("");
   const lastAction = useRef<THREE.AnimationAction | null>(null);
@@ -109,4 +103,3 @@ export function Character({ url, scale = 1, facing, getFighter, fx }: CharacterP
   );
 }
 
-useGLTF.preload(ANIMS_URL);

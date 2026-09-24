@@ -269,10 +269,14 @@ export function Effects({ battleRef }: { battleRef: RefObject<BattleState> }) {
     };
   }, [battleRef]);
 
+  const parentQ = useRef(new THREE.Quaternion());
+
   useFrame((state, delta) => {
     const dt = Math.min(delta, 0.05);
     const parent = root.current;
     if (!parent) return;
+    // Les effets "billboard" font face à la caméra, même si le combat est tourné dans le monde
+    const invParent = parent.getWorldQuaternion(parentQ.current).invert();
 
     // Mise à jour des effets temporaires
     const list = puffs.current;
@@ -287,7 +291,7 @@ export function Effects({ battleRef }: { battleRef: RefObject<BattleState> }) {
       const k = Math.min(1, p.age / p.life);
       p.update(k, dt);
       if (p.billboard) {
-        p.obj.quaternion.copy(camera.quaternion);
+        p.obj.quaternion.copy(invParent).multiply(camera.quaternion);
         if (p.spin) p.obj.rotateZ(p.spin * p.age * 6);
       }
       if (k >= 1) {

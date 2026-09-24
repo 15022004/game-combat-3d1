@@ -13,6 +13,8 @@ export interface BattleOptions {
   /** Qui contrôle le combattant A (à gauche) : le joueur ou un bot */
   controlA: Controller;
   difficulty: DifficultyId;
+  /** Distance de départ entre les deux combattants (défaut : 7) */
+  startGap?: number;
 }
 
 /** Initialise un nouveau combat entre deux personnages */
@@ -43,9 +45,10 @@ export function createBattle(defA: CharacterDef, defB: CharacterDef, opts: Battl
     cooldowns: { attack: 0, special: 0, dodge: 0, dash: 0 },
   });
 
+  const gap = Math.min(7, Math.max(1.6, opts.startGap ?? 7));
   return {
-    fighterA: initFighter(defA, -3.5, opts.controlA),
-    fighterB: initFighter(defB, 3.5, "bot"),
+    fighterA: initFighter(defA, -gap / 2, opts.controlA),
+    fighterB: initFighter(defB, gap / 2, "bot"),
     difficulty: opts.difficulty,
     projectiles: [],
     nextProjectileId: 1,

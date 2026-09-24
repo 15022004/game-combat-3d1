@@ -6,6 +6,9 @@ import { HUD } from "./HUD";
 import { Simulation } from "./Simulation";
 import { Controls } from "./Controls";
 import { CharacterSelect } from "./CharacterSelect";
+import { AdventureMenu } from "./AdventureMenu";
+import { AdventureScreen } from "./AdventureScreen";
+import { loadProgress, saveProgress, type Progress } from "@/lib/progress";
 import { CHARACTERS, getCharacter, type CharacterDef } from "@/data/characters";
 import { createBattle } from "@/lib/engine/engine";
 import { getDifficulty } from "@/lib/engine/difficulty";
@@ -32,36 +35,98 @@ const battleFor = (m: Match) =>
     difficulty: m.settings.difficulty,
   });
 
+type Screen =
+  | { name: "hero" } // choix du héros (première visite ou changement)
+  | { name: "menu" } // accueil du mode Aventure
+  | { name: "level"; level: number; key: number } // exploration + combat d'un niveau
+  | { name: "quickSetup" } // réglages du combat rapide
+  | { name: "quick" }; // combat rapide
+
+const DEFAULT_SETTINGS = (playerId: string): GameSettings => ({ playerId, opponentId: "random", difficulty: "normal", mode: "versus" });
+
 /**
- * Le jeu : écran de sélection (la première fois, ou sur demande) puis l'arène.
+ * Le jeu : choix du héros (la première fois), menu Aventure (niveaux 0 à 50), exploration des
+ * champs de bataille, et le combat rapide d'origine.
  * Chargé uniquement côté navigateur (voir app/battle/page.tsx) : on peut lire localStorage.
  */
 export default function Game() {
   const [settings, setSettings] = useState<GameSettings | null>(() => loadSettings());
-  const [match, setMatch] = useState<Match | null>(() => (settings ? newMatch(settings) : null));
-  const [selecting, setSelecting] = useState(() => settings === null);
+  const [progress, setProgress] = useState<Progress>(() => loadProgress());
+  const [screen, setScreen] = useState<Screen>(() => (settings ? { name: "menu" } : { name: "hero" }));
+  const [match, setMatch] = useState<Match | null>(null);
 
-  if (selecting || !match || !settings) {
+  const updateProgress = (p: Progress) => {
+    saveProgress(p);
+    setProgress(p);
+  };
+  const updateSettings = (s: GameSettings) => {
+    saveSettings(s);
+    setSettings(s);
+  };
+  const hero = getCharacter(settings?.playerId) ?? CHARACTERS[0];
+
+  if (screen.name === "hero" || !settings) {
     return (
       <CharacterSelect
+        heroOnly
         initial={settings}
-        onCancel={settings && match ? () => setSelecting(false) : undefined}
+        onCancel={settings ? () => setScreen({ name: "menu" }) : undefined}
         onConfirm={(s) => {
-          saveSettings(s);
-          setSettings(s);
-          setMatch(newMatch(s));
-          setSelecting(false);
+          updateSettings({ ...(settings ?? DEFAULT_SETTINGS(s.playerId)), playerId: s.playerId });
+          setScreen({ name: "menu" });
         }}
       />
     );
   }
 
+  if (screen.name === "level") {
+    return (
+      <AdventureScreen
+        key={screen.key}
+        level={screen.level}
+        heroBase={hero}
+        progress={progress}
+        onProgress={updateProgress}
+        onExit={() => setScreen({ name: "menu" })}
+        onNextLevel={(level) => setScreen({ name: "level", level, key: Date.now() })}
+      />
+    );
+  }
+
+  if (screen.name === "quickSetup" || (screen.name === "quick" && !match)) {
+    return (
+      <CharacterSelect
+        initial={settings}
+        onCancel={() => setScreen({ name: "menu" })}
+        onConfirm={(s) => {
+          updateSettings(s);
+          setMatch(newMatch(s));
+          setScreen({ name: "quick" });
+        }}
+      />
+    );
+  }
+
+  if (screen.name === "quick" && match) {
+    return (
+      <BattleScreen
+        key={match.key}
+        match={match}
+        onNextOpponent={() => setMatch(newMatch(settings, match.b.id))}
+        onChangeCharacter={() => setScreen({ name: "quickSetup" })}
+        onMenu={() => setScreen({ name: "menu" })}
+      />
+    );
+  }
+
   return (
-    <BattleScreen
-      key={match.key}
-      match={match}
-      onNextOpponent={() => setMatch(newMatch(settings, match.b.id))}
-      onChangeCharacter={() => setSelecting(true)}
+    <AdventureMenu
+      hero={hero}
+      progress={progress}
+      onProgress={updateProgress}
+      onPlay={(level) => setScreen({ name: "level", level, key: Date.now() })}
+      onChangeHero={() => setScreen({ name: "hero" })}
+      onQuickFight={() => setScreen({ name: "quickSetup" })}
     />
   );
 }
@@ -70,10 +135,12 @@ function BattleScreen({
   match,
   onNextOpponent,
   onChangeCharacter,
+  onMenu,
 }: {
   match: Match;
   onNextOpponent: () => void;
   onChangeCharacter: () => void;
+  onMenu: () => void;
 }) {
   const battleRef = useRef<BattleState>(battleFor(match));
   const inputRef = useRef(createInput());
@@ -94,6 +161,7 @@ function BattleScreen({
         }}
         onNextOpponent={onNextOpponent}
         onChangeCharacter={onChangeCharacter}
+        topAction={{ label: "MENU", onClick: onMenu }}
       />
       {versus && <Controls inputRef={inputRef} battleRef={battleRef} color={match.a.color} />}
       {active && (

@@ -6,9 +6,17 @@ import { fxBus } from "@/lib/fxBus";
 
 interface HUDProps {
   battleRef: RefObject<BattleState>;
-  onRestart: () => void;
-  onNextOpponent: () => void;
-  onChangeCharacter: () => void;
+  onRestart?: () => void;
+  onNextOpponent?: () => void;
+  onChangeCharacter?: () => void;
+  /** Boutons de fin de combat personnalisés (mode Aventure) */
+  endActions?: (outcome: "win" | "lose" | "draw") => { label: string; onClick: () => void }[];
+  /** Étiquette à côté du nom du combattant B (défaut : BOT · difficulté) */
+  tagB?: string;
+  /** Bouton sous le chrono (défaut : CHANGER DE PERSO) */
+  topAction?: { label: string; onClick: () => void };
+  /** Délai d'apparition de l'écran de fin (s) */
+  endDelay?: number;
   /** Mode joueur contre bot : affiche "VOUS", "VICTOIRE" / "DÉFAITE" */
   versus: boolean;
   difficultyLabel: string;
@@ -78,7 +86,9 @@ function Panel({ f, side, tag }: { f: FighterState; side: "left" | "right"; tag:
   );
 }
 
-export function HUD({ battleRef, onRestart, onNextOpponent, onChangeCharacter, versus, difficultyLabel }: HUDProps) {
+export function HUD({
+  battleRef, onRestart, onNextOpponent, onChangeCharacter, endActions, topAction, endDelay = 2.4, versus, difficultyLabel, tagB,
+}: HUDProps) {
   // Copie de l'état du combat rafraîchie 20 fois par seconde (on ne lit jamais la ref pendant le rendu)
   const [snap, setSnap] = useState<BattleState | null>(null);
   const [combo, setCombo] = useState<{ side: "left" | "right"; n: number; color: string; key: number } | null>(null);
@@ -229,7 +239,8 @@ export function HUD({ battleRef, onRestart, onNextOpponent, onChangeCharacter, v
       ? winner === fighterA ? "VICTOIRE !" : "DÉFAITE…"
       : `VICTOIRE DE ${winner.def.name.toUpperCase()}`;
   const endColor = !winner ? "#fff" : versus && winner !== fighterA ? "#ff4d4d" : winner.def.color;
-  const botTag = `BOT · ${difficultyLabel.toUpperCase()}`;
+  const botTag = tagB ?? `BOT · ${difficultyLabel.toUpperCase()}`;
+  const outcome = !winner ? "draw" : winner === fighterA ? "win" : "lose";
 
   return (
     <div style={{ position: "absolute", inset: 0, pointerEvents: "none", color: "#fff", overflow: "hidden" }}>
@@ -264,9 +275,11 @@ export function HUD({ battleRef, onRestart, onNextOpponent, onChangeCharacter, v
           >
             {Math.ceil(snap.timeRemaining)}
           </div>
-          <button onClick={onChangeCharacter} style={smallBtn} title="Revenir à l'écran de sélection">
-            CHANGER DE PERSO
-          </button>
+          {(topAction || onChangeCharacter) && (
+            <button onClick={topAction?.onClick ?? onChangeCharacter} style={smallBtn}>
+              {topAction?.label ?? "CHANGER DE PERSO"}
+            </button>
+          )}
         </div>
         <Panel f={fighterB} side="right" tag={botTag} />
       </div>
@@ -304,7 +317,7 @@ export function HUD({ battleRef, onRestart, onNextOpponent, onChangeCharacter, v
             bottom: 70,
             textAlign: "center",
             pointerEvents: "auto",
-            animation: "hudFade 0.7s 2.4s both",
+            animation: `hudFade 0.7s ${endDelay}s both`,
           }}
         >
           <div
@@ -320,9 +333,13 @@ export function HUD({ battleRef, onRestart, onNextOpponent, onChangeCharacter, v
             {endText}
           </div>
           <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", marginTop: 14 }}>
-            <button onClick={onRestart} style={endBtn}>REJOUER</button>
-            <button onClick={onNextOpponent} style={endBtn}>NOUVEL ADVERSAIRE</button>
-            <button onClick={onChangeCharacter} style={endBtn}>CHANGER DE PERSO</button>
+            {(endActions?.(outcome) ?? [
+              { label: "REJOUER", onClick: onRestart },
+              { label: "NOUVEL ADVERSAIRE", onClick: onNextOpponent },
+              { label: "CHANGER DE PERSO", onClick: onChangeCharacter },
+            ]).map((a) => (
+              <button key={a.label} onClick={a.onClick} style={endBtn}>{a.label}</button>
+            ))}
           </div>
         </div>
       )}

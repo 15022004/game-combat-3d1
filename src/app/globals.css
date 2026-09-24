@@ -32,3 +32,11 @@ body {
     transform: translateY(0);
   }
 }
+
+/* Titre d'introduction (niveau, "COMBAT !") : apparaît puis s'efface */
+@keyframes introFade {
+  0% { opacity: 0; transform: scale(1.6); }
+  15% { opacity: 1; transform: scale(1); }
+  75% { opacity: 1; }
+  100% { opacity: 0; }
+}

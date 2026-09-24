@@ -16,6 +16,8 @@ export interface CharacterDef {
   color: string; // Couleur de l'aura et des effets (hex)
   /** Mise à l'échelle du modèle (certains .glb ne sont pas exportés à taille humaine) */
   scale?: number;
+  /** Teinte appliquée au modèle (utilisée pour les monstres) */
+  tint?: string;
   tagline: string; // Petite phrase affichée dans l'écran de sélection
   stats: CharacterStats;
 }

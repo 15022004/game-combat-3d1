@@ -7,7 +7,21 @@ npm install
 npm run dev   # http://localhost:3000
 ```
 
-## Le jeu
+## Mode Aventure
+
+- **51 niveaux (0 à 50)** répartis sur **5 champs de bataille** : Plaine d'Émeraude (0–10), Désert
+  Écarlate (11–20), Toundra de Givre (21–30), Cité en Ruines (31–40), Volcan Noir (41–50)
+  — `src/data/battlefields.ts`.
+- Chaque niveau : un grand terrain à explorer (260 × 260 m). Le monstre est quelque part : repère-le
+  grâce à la **mini-carte** (M pour la carte complète) et à sa **balise lumineuse**. Au contact, le
+  combat se déroule sur place.
+- Un **monstre par niveau**, un **boss tous les 10 niveaux** — `src/data/monsters.ts`.
+- Chaque victoire rapporte des **pièces** (40% si le niveau est rejoué), à dépenser en
+  **améliorations** (vie, attaque, défense, spécial, vitesse) — `src/lib/progress.ts`.
+- Exploration : ZQSD / WASD ou ↑↓ pour marcher, ←→ ou glisser pour tourner la caméra, Maj pour courir,
+  joystick + bouton COURIR sur mobile.
+
+## Combat
 
 - **Première visite** : écran de sélection (personnage, adversaire, mode, difficulté). Les choix sont
   mémorisés dans le navigateur ; ensuite on arrive directement dans l'arène. Le bouton
@@ -18,7 +32,7 @@ npm run dev   # http://localhost:3000
   (`src/lib/engine/moves.ts`) — poings (Direct, Rafale, Genou volant), pieds (Salto frappé, Vrille,
   Coup de pied sauté), spéciaux (Danse du cyclone, Tornade inversée, Boule de feu).
 
-## Commandes
+## Commandes de combat
 
 | Action | Clavier | Écran tactile |
 | --- | --- | --- |
