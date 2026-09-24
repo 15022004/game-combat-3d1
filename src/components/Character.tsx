@@ -4,35 +4,39 @@ import type { RefObject } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useGLTF, useAnimations } from "@react-three/drei";
 import * as THREE from "three";
-import { prepareModel } from "@/lib/prepareModel";
+import { prepareCharacter, retargetClips } from "@/lib/prepareModel";
 import type { ActionType, FighterState } from "@/lib/engine/types";
+import { getMove } from "@/lib/engine/moves";
 import type { FxState } from "@/lib/fx";
 
+export const ANIMS_URL = "/models/anims.glb";
+
 interface ClipConfig {
-  clip: string; // nom du clip dans le .glb (attention à la casse : "Block")
-  speed: number; // vitesse de lecture
-  start?: number; // début de lecture (secondes) : on saute la préparation du coup
+  clip: string; // nom du clip dans anims.glb
+  speed: number; // vitesse de lecture (négative = à l'envers)
+  start?: number; // début de lecture (secondes)
   loop: boolean;
 }
 
-/**
- * Réglages calés sur l'analyse des clips Mixamo :
- * - punch : le poing touche à ~1.15 s dans le clip -> on démarre à 0.6 s à vitesse x1.3,
- *   l'impact tombe à 0.42 s, exactement le "hit frame" du moteur (TIMING.attack.impact)
- * - special : coups de pied à 2.15 s, 3.3 s et 3.85 s dans le clip -> vitesse x2
- *   = impacts à 1.08 s, 1.65 s et 1.93 s (TIMING.special.strikes)
- */
-const CLIPS: Record<ActionType, ClipConfig> = {
-  idle: { clip: "idle", speed: 1, loop: true },
-  approach: { clip: "walk", speed: 1.5, loop: true },
-  dash: { clip: "walk", speed: 3, loop: true },
-  attack: { clip: "punch", speed: 1.3, start: 0.6, loop: false },
-  special: { clip: "special", speed: 2, loop: false },
-  block: { clip: "Block", speed: 1, loop: true },
-  dodge: { clip: "dodge", speed: 2.2, loop: false },
-  hit: { clip: "hit", speed: 2.5, loop: false },
+/** Animations des actions "de base". Attaques et spéciaux : voir lib/engine/moves.ts */
+const CLIPS: Record<Exclude<ActionType, "attack" | "special">, ClipConfig> = {
+  idle: { clip: "Idle", speed: 1, loop: true },
+  approach: { clip: "Walking", speed: 1.5, loop: true },
+  retreat: { clip: "Walking", speed: -1.2, loop: true }, // marche arrière
+  dash: { clip: "Walking", speed: 3, loop: true },
+  block: { clip: "Standing Block Idle", speed: 1, loop: true },
+  dodge: { clip: "Dodging", speed: 2.2, loop: false },
+  hit: { clip: "Hit Reaction", speed: 2.5, loop: false },
 };
-const DEATH: ClipConfig = { clip: "death", speed: 1.3, loop: false };
+const DEATH: ClipConfig = { clip: "Standing React Death Right", speed: 1.3, loop: false };
+
+function clipFor(f: FighterState): ClipConfig {
+  if (f.currentAction === "attack" || f.currentAction === "special") {
+    const m = getMove(f.moveId);
+    return m ? { clip: m.clip, speed: m.speed, start: m.start, loop: false } : CLIPS.idle;
+  }
+  return CLIPS[f.currentAction];
+}
 
 function setMixerSpeed(mixer: THREE.AnimationMixer, speed: number) {
   mixer.timeScale = speed;
@@ -41,8 +45,8 @@ function setMixerSpeed(mixer: THREE.AnimationMixer, speed: number) {
 /** Lance un clip avec ses réglages (fonction externe : manipule directement l'objet three.js) */
 function playClip(action: THREE.AnimationAction, cfg: ClipConfig) {
   action.reset();
-  action.time = cfg.start ?? 0;
   action.timeScale = cfg.speed;
+  action.time = cfg.start ?? (cfg.speed < 0 ? action.getClip().duration : 0);
   if (cfg.loop) {
     action.setLoop(THREE.LoopRepeat, Infinity);
     action.clampWhenFinished = false;
@@ -55,21 +59,21 @@ function playClip(action: THREE.AnimationAction, cfg: ClipConfig) {
 
 interface CharacterProps {
   url: string;
+  scale?: number;
   /** 1 = regarde vers la droite (+x), -1 = regarde vers la gauche (-x) */
   facing: 1 | -1;
   getFighter: () => FighterState;
   fx: RefObject<FxState>;
 }
 
-export function Character({ url, facing, getFighter, fx }: CharacterProps) {
+export function Character({ url, scale = 1, facing, getFighter, fx }: CharacterProps) {
   const group = useRef<THREE.Group>(null);
   const gltf = useGLTF(url);
-  // Clone du modèle + rattachement des animations au squelette visible
-  // (les .glb Mixamo contiennent un squelette séparé par animation, voir prepareModel.ts)
-  const { scene, clips } = useMemo(
-    () => prepareModel(gltf.scene, gltf.animations),
-    [gltf.scene, gltf.animations]
-  );
+  const lib = useGLTF(ANIMS_URL);
+  const { scene, clips } = useMemo(() => {
+    const character = prepareCharacter(gltf.scene);
+    return { scene: character, clips: retargetClips(character, lib.scene, lib.animations) };
+  }, [gltf.scene, lib.scene, lib.animations]);
   const { actions, mixer } = useAnimations(clips, group);
   const lastKey = useRef("");
   const lastAction = useRef<THREE.AnimationAction | null>(null);
@@ -85,10 +89,10 @@ export function Character({ url, facing, getFighter, fx }: CharacterProps) {
 
     // On (re)lance une animation quand l'action change ou qu'elle redémarre (actionId)
     const dead = f.currentHp <= 0;
-    const key = dead ? "death" : `${f.currentAction}:${f.actionId}`;
+    const key = dead ? "death" : `${f.currentAction}:${f.actionId}:${f.moveId ?? ""}`;
     if (key === lastKey.current) return;
 
-    const cfg = dead ? DEATH : CLIPS[f.currentAction];
+    const cfg = dead ? DEATH : clipFor(f);
     const next = actions[cfg.clip];
     if (!next) return; // pas encore prêt : on réessaie à la frame suivante
     lastKey.current = key;
@@ -99,8 +103,10 @@ export function Character({ url, facing, getFighter, fx }: CharacterProps) {
   });
 
   return (
-    <group ref={group}>
+    <group ref={group} scale={scale}>
       <primitive object={scene} />
     </group>
   );
 }
+
+useGLTF.preload(ANIMS_URL);

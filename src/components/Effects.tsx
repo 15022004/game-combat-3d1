@@ -4,7 +4,7 @@ import type { RefObject } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { fxBus, type FxPayload } from "@/lib/fxBus";
-import { TIMING } from "@/lib/engine/constants";
+import { chargeWindow } from "@/lib/engine/engine";
 import type { BattleState } from "@/lib/engine/types";
 
 /** Un effet temporaire (étincelle, onde de choc, lignes de vitesse...) */
@@ -216,6 +216,11 @@ export function Effects({ battleRef }: { battleRef: RefObject<BattleState> }) {
           }
           risingSparks(e.x, 22, color);
           break;
+        case "fireball":
+          burst(e.x + e.dir * 0.6, 1.3, 2.2, color);
+          shock(e.x + e.dir * 0.6, 1.3, 2, color, 0.3);
+          speedLines(e.x, e.dir, 8, color);
+          break;
         case "ko":
           burst(e.x, 1.3, 6.5, "#ffffff");
           shock(e.x, 1.3, 7, "#ffffff", 0.6);
@@ -297,7 +302,8 @@ export function Effects({ battleRef }: { battleRef: RefObject<BattleState> }) {
     [b.fighterA, b.fighterB].forEach((f, i) => {
       const a = auras.current[i];
       if (!a) return;
-      const on = f.currentAction === "special" && f.actionElapsed < TIMING.special.rushEnd && f.currentHp > 0;
+      const charge = chargeWindow(f);
+      const on = charge > 0 && f.actionElapsed < charge + 0.3 && f.currentHp > 0;
       a.level += ((on ? 1 : 0) - a.level) * Math.min(1, dt * 12);
       a.group.visible = a.level > 0.02;
       a.group.position.x = f.position;

@@ -6,8 +6,9 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { Character } from "./Character";
 import { Effects } from "./Effects";
-import { step } from "@/lib/engine/engine";
-import { TIMING } from "@/lib/engine/constants";
+import { chargeWindow, step } from "@/lib/engine/engine";
+import { Projectiles } from "./Projectiles";
+import type { PlayerInput } from "@/lib/input";
 import type { BattleEvent, BattleState } from "@/lib/engine/types";
 import type { CharacterDef } from "@/data/characters";
 import { createFx } from "@/lib/fx";
@@ -17,10 +18,14 @@ interface SimulationProps {
   a: CharacterDef;
   b: CharacterDef;
   battleRef: RefObject<BattleState>;
+  /** Commandes du joueur (combattant A) ; absent en mode spectateur */
+  inputRef?: RefObject<PlayerInput>;
+  /** Pause : le combat est figé */
+  paused?: boolean;
   speed?: number;
 }
 
-export function Simulation({ a, b, battleRef, speed = 1 }: SimulationProps) {
+export function Simulation({ a, b, battleRef, inputRef, paused = false, speed = 1 }: SimulationProps) {
   const fx = useRef(createFx());
   const focus = useRef(new THREE.Vector3(0, 1.2, 0));
   const tmp = useRef(new THREE.Vector3());
@@ -36,7 +41,7 @@ export function Simulation({ a, b, battleRef, speed = 1 }: SimulationProps) {
     f.lastTime = battle.timeRemaining;
 
     // Impact ressenti : le temps se fige un court instant (hit stop), ralenti au K.O.
-    let simDt = realDt * speed;
+    let simDt = paused ? 0 : realDt * speed;
     if (f.hitStop > 0) {
       f.hitStop -= realDt;
       simDt = 0;
@@ -48,7 +53,7 @@ export function Simulation({ a, b, battleRef, speed = 1 }: SimulationProps) {
 
     // Avancement du moteur + traduction des événements en effets
     if (simDt > 0) {
-      const next = step(battle, simDt);
+      const next = step(battle, simDt, inputRef?.current);
       battleRef.current = next;
       battle = next;
       for (const e of next.events) {
@@ -69,7 +74,7 @@ export function Simulation({ a, b, battleRef, speed = 1 }: SimulationProps) {
 
     // Gros plan pendant la charge du spécial
     const charger = [fA, fB].find(
-      (fi) => fi.currentAction === "special" && fi.actionElapsed < TIMING.special.rushStart && fi.currentHp > 0
+      (fi) => fi.actionElapsed < chargeWindow(fi) && fi.currentHp > 0
     );
     // Zoom sur le vaincu à la fin du combat
     const ko = battle.isFinished ? [fA, fB].find((fi) => fi.currentHp <= 0) : undefined;
@@ -104,10 +109,13 @@ export function Simulation({ a, b, battleRef, speed = 1 }: SimulationProps) {
   return (
     <>
       {/* Combattant A */}
-      <Character url={a.model} facing={1} getFighter={() => battleRef.current.fighterA} fx={fx} />
+      <Character url={a.model} scale={a.scale} facing={1} getFighter={() => battleRef.current.fighterA} fx={fx} />
 
       {/* Combattant B */}
-      <Character url={b.model} facing={-1} getFighter={() => battleRef.current.fighterB} fx={fx} />
+      <Character url={b.model} scale={b.scale} facing={-1} getFighter={() => battleRef.current.fighterB} fx={fx} />
+
+      {/* Boules de feu */}
+      <Projectiles battleRef={battleRef} />
 
       {/* Étincelles, ondes de choc, lignes de vitesse, auras */}
       <Effects battleRef={battleRef} />
@@ -124,6 +132,10 @@ function onEvent(
 ) {
   const level = e.power === "light" ? 0 : e.power === "heavy" ? 1 : 2;
   switch (e.type) {
+    case "fireball":
+      f.shake = Math.max(f.shake, 0.08);
+      f.kick = Math.max(f.kick, 0.6);
+      break;
     case "hit":
     case "special":
       f.shake = Math.max(f.shake, [0.06, 0.16, 0.32][level]);

@@ -7,12 +7,17 @@ import { fxBus } from "@/lib/fxBus";
 interface HUDProps {
   battleRef: RefObject<BattleState>;
   onRestart: () => void;
+  onNextOpponent: () => void;
+  onChangeCharacter: () => void;
+  /** Mode joueur contre bot : affiche "VOUS", "VICTOIRE" / "DÉFAITE" */
+  versus: boolean;
+  difficultyLabel: string;
 }
 
 const FONT = "Impact, 'Arial Black', system-ui, sans-serif";
 
 /** Barre de vie / énergie d'un combattant (façon jeu de combat) */
-function Panel({ f, side }: { f: FighterState; side: "left" | "right" }) {
+function Panel({ f, side, tag }: { f: FighterState; side: "left" | "right"; tag: string }) {
   const hp = Math.max(0, (f.currentHp / f.maxHp) * 100);
   const energy = Math.min(100, f.energy);
   const right = side === "right";
@@ -51,6 +56,9 @@ function Panel({ f, side }: { f: FighterState; side: "left" | "right" }) {
         }}
       >
         {f.def.name}
+        <span style={{ fontSize: 13, marginLeft: 8, marginRight: 8, letterSpacing: 1, color: "#fff", opacity: 0.8, fontStyle: "normal" }}>
+          {tag}
+        </span>
       </div>
       <div style={track}>
         {/* Barre "fantôme" : montre les dégâts qui viennent d'être pris */}
@@ -70,7 +78,7 @@ function Panel({ f, side }: { f: FighterState; side: "left" | "right" }) {
   );
 }
 
-export function HUD({ battleRef, onRestart }: HUDProps) {
+export function HUD({ battleRef, onRestart, onNextOpponent, onChangeCharacter, versus, difficultyLabel }: HUDProps) {
   // Copie de l'état du combat rafraîchie 20 fois par seconde (on ne lit jamais la ref pendant le rendu)
   const [snap, setSnap] = useState<BattleState | null>(null);
   const [combo, setCombo] = useState<{ side: "left" | "right"; n: number; color: string; key: number } | null>(null);
@@ -181,8 +189,11 @@ export function HUD({ battleRef, onRestart }: HUDProps) {
           flash(e.power === "ultimate" ? 0.65 : 0.3, e.power === "ultimate" ? 320 : 200);
           if (e.power === "ultimate") lines(0.7, 600);
           break;
+        case "move":
+          if (e.label) pop(e.label, sx, sy - 14, color, 24, 110);
+          break;
         case "charge":
-          banner("SPÉCIAL !", color, 88, 1000);
+          banner(e.label ? `${e.label.toUpperCase()} !` : "SPÉCIAL !", color, 72, 1000);
           lines(0.85, 950);
           break;
         case "dash":
@@ -212,6 +223,13 @@ export function HUD({ battleRef, onRestart }: HUDProps) {
   const { fighterA, fighterB } = snap;
   const winner = [fighterA, fighterB].find((f) => f.def.id === snap.winnerId);
   const low = snap.timeRemaining <= 10;
+  const endText = !winner
+    ? "ÉGALITÉ"
+    : versus
+      ? winner === fighterA ? "VICTOIRE !" : "DÉFAITE…"
+      : `VICTOIRE DE ${winner.def.name.toUpperCase()}`;
+  const endColor = !winner ? "#fff" : versus && winner !== fighterA ? "#ff4d4d" : winner.def.color;
+  const botTag = `BOT · ${difficultyLabel.toUpperCase()}`;
 
   return (
     <div style={{ position: "absolute", inset: 0, pointerEvents: "none", color: "#fff", overflow: "hidden" }}>
@@ -232,20 +250,25 @@ export function HUD({ battleRef, onRestart }: HUDProps) {
 
       {/* Barres de vie + chrono */}
       <div style={{ position: "absolute", left: 24, right: 24, top: 16, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-        <Panel f={fighterA} side="left" />
-        <div
-          style={{
-            fontFamily: FONT,
-            fontSize: 46,
-            lineHeight: 1,
-            marginTop: 6,
-            color: low ? "#ff5a5a" : "#fff",
-            textShadow: "3px 3px 0 #000",
-          }}
-        >
-          {Math.ceil(snap.timeRemaining)}
+        <Panel f={fighterA} side="left" tag={versus ? "VOUS" : "BOT"} />
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+          <div
+            style={{
+              fontFamily: FONT,
+              fontSize: 46,
+              lineHeight: 1,
+              marginTop: 6,
+              color: low ? "#ff5a5a" : "#fff",
+              textShadow: "3px 3px 0 #000",
+            }}
+          >
+            {Math.ceil(snap.timeRemaining)}
+          </div>
+          <button onClick={onChangeCharacter} style={smallBtn} title="Revenir à l'écran de sélection">
+            CHANGER DE PERSO
+          </button>
         </div>
-        <Panel f={fighterB} side="right" />
+        <Panel f={fighterB} side="right" tag={botTag} />
       </div>
 
       {/* Compteur de combo */}
@@ -290,31 +313,45 @@ export function HUD({ battleRef, onRestart }: HUDProps) {
               fontStyle: "italic",
               fontSize: 64,
               letterSpacing: 4,
-              color: winner?.def.color ?? "#fff",
+              color: endColor,
               textShadow: "4px 4px 0 #000, 0 0 30px rgba(0,0,0,0.8)",
             }}
           >
-            {winner ? `VICTOIRE DE ${winner.def.name.toUpperCase()}` : "ÉGALITÉ"}
+            {endText}
           </div>
-          <button
-            onClick={onRestart}
-            style={{
-              marginTop: 14,
-              padding: "12px 34px",
-              fontFamily: FONT,
-              fontSize: 22,
-              letterSpacing: 2,
-              cursor: "pointer",
-              color: "#fff",
-              background: "rgba(0,0,0,0.6)",
-              border: "2px solid #fff",
-              transform: "skewX(-10deg)",
-            }}
-          >
-            REJOUER
-          </button>
+          <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", marginTop: 14 }}>
+            <button onClick={onRestart} style={endBtn}>REJOUER</button>
+            <button onClick={onNextOpponent} style={endBtn}>NOUVEL ADVERSAIRE</button>
+            <button onClick={onChangeCharacter} style={endBtn}>CHANGER DE PERSO</button>
+          </div>
         </div>
       )}
     </div>
   );
 }
+
+const endBtn: CSSProperties = {
+  padding: "12px 26px",
+  fontFamily: FONT,
+  fontSize: 20,
+  letterSpacing: 2,
+  cursor: "pointer",
+  color: "#fff",
+  background: "rgba(0,0,0,0.6)",
+  border: "2px solid #fff",
+  transform: "skewX(-10deg)",
+};
+
+const smallBtn: CSSProperties = {
+  pointerEvents: "auto",
+  padding: "4px 10px",
+  fontFamily: FONT,
+  fontSize: 12,
+  letterSpacing: 1,
+  cursor: "pointer",
+  color: "#fff",
+  background: "rgba(0,0,0,0.55)",
+  border: "1px solid rgba(255,255,255,0.7)",
+  transform: "skewX(-10deg)",
+  whiteSpace: "nowrap",
+};

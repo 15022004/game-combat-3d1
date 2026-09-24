@@ -1,36 +1,38 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Battle Arena
 
-## Getting Started
-
-First, run the development server:
+Jeu de combat 3D dans le navigateur (Next.js + React Three Fiber).
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev   # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Le jeu
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- **Première visite** : écran de sélection (personnage, adversaire, mode, difficulté). Les choix sont
+  mémorisés dans le navigateur ; ensuite on arrive directement dans l'arène. Le bouton
+  **CHANGER DE PERSO** (en haut, et à la fin du combat) ramène à la sélection.
+- **Modes** : joueur contre bot, ou spectateur (bot contre bot).
+- **5 difficultés** : Très facile, Facile, Normal, Difficile, Légende (`src/lib/engine/difficulty.ts`).
+- **Mouvements aléatoires** : chaque bouton tire un mouvement au hasard dans sa catégorie
+  (`src/lib/engine/moves.ts`) — poings (Direct, Rafale, Genou volant), pieds (Salto frappé, Vrille,
+  Coup de pied sauté), spéciaux (Danse du cyclone, Tornade inversée, Boule de feu).
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Commandes
 
-## Learn More
+| Action | Clavier | Écran tactile |
+| --- | --- | --- |
+| Avancer / reculer | D / Q (AZERTY) ou flèches | ▶ / ◀ |
+| Garde (maintenir) | S ou ↓ | GARDE |
+| Poing / Pied / Spécial | J / K / L | POING / PIED / SPÉCIAL |
+| Esquive / Dash | Espace / Maj | ESQUIVE / DASH |
 
-To learn more about Next.js, take a look at the following resources:
+Le spécial coûte 50 d'énergie (barre sous la vie).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Personnages et animations
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Personnages : `src/data/characters.ts` (stats, couleur, style de l'IA, `scale`).
+- Toutes les animations viennent d'une bibliothèque commune : `public/models/anims.glb`
+  (générée par `scripts/build-anims.mjs`), adaptée à chaque squelette par `src/lib/prepareModel.ts`.
+- Les modèles de `public/models` ont été allégés (`scripts/optimize-models.mjs`) : mesh + squelette
+  seulement, textures en WebP 1024 px.
