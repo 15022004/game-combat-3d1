@@ -14,7 +14,7 @@ export default function BattlePage() {
 
   return (
     <div style={{ position: "relative", width: "100vw", height: "100vh" }}>
-      <Arena>
+      <Arena colorA={A.color} colorB={B.color}>
         <Simulation a={A} b={B} battleRef={battleRef} />
       </Arena>
       <HUD battleRef={battleRef} onRestart={() => { battleRef.current = createBattle(A, B); }} />

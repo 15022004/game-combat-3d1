@@ -13,6 +13,7 @@ export interface CharacterDef {
   name: string;
   model: string; // Chemin du fichier .glb dans /public
   style: FighterStyle; // Style utilisé par l'IA (voir lib/engine/ai.ts)
+  color: string; // Couleur de l'aura et des effets (hex)
   stats: CharacterStats;
 }
 
@@ -22,13 +23,15 @@ export const CHARACTERS: CharacterDef[] = [
     name: "Kairo",
     model: "/models/kairo.glb",
     style: "aggressive",
-    stats: { hp: 200, attack: 22, defense: 10, special: 30, speed: 70 },
+    color: "#ff5a2a",
+    stats: { hp: 300, attack: 22, defense: 10, special: 30, speed: 70 },
   },
   {
     id: "razen",
     name: "Razen",
     model: "/models/razen.glb",
     style: "defensive",
-    stats: { hp: 220, attack: 18, defense: 20, special: 28, speed: 60 },
+    color: "#3ec5ff",
+    stats: { hp: 320, attack: 20, defense: 20, special: 28, speed: 60 },
   },
 ];

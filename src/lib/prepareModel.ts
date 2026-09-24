@@ -80,6 +80,14 @@ export function prepareModel(scene: THREE.Object3D, clips: THREE.AnimationClip[]
   // 4. On retire les squelettes vides (ils n'ont plus d'utilité)
   otherRoots.forEach((r) => clone.remove(r));
 
+  // 5. Ombres + pas de "culling" (un mesh animé peut sortir de sa boîte englobante d'origine)
+  clone.traverse((o) => {
+    if (isMesh(o)) {
+      o.castShadow = true;
+      o.frustumCulled = false;
+    }
+  });
+
   return { scene: clone, clips: newClips };
 }
 
